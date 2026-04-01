@@ -4,6 +4,87 @@ document.addEventListener("DOMContentLoaded", () => {
   const signupForm = document.getElementById("signup-form");
   const messageDiv = document.getElementById("message");
 
+  // Auth state
+  const loginBtn = document.getElementById("login-btn");
+  const logoutBtn = document.getElementById("logout-btn");
+  const loginModal = document.getElementById("login-modal");
+  const loginForm = document.getElementById("login-form");
+  const loginError = document.getElementById("login-error");
+  const loggedInInfo = document.getElementById("logged-in-info");
+  const signupContainer = document.getElementById("signup-container");
+
+  function getToken() {
+    return sessionStorage.getItem("authToken");
+  }
+
+  function isLoggedIn() {
+    return !!getToken();
+  }
+
+  function updateAuthUI() {
+    if (isLoggedIn()) {
+      loginBtn.classList.add("hidden");
+      loggedInInfo.classList.remove("hidden");
+      signupContainer.classList.remove("hidden");
+    } else {
+      loginBtn.classList.remove("hidden");
+      loggedInInfo.classList.add("hidden");
+      signupContainer.classList.add("hidden");
+    }
+    fetchActivities();
+  }
+
+  loginBtn.addEventListener("click", () => {
+    loginModal.classList.remove("hidden");
+    document.getElementById("login-username").focus();
+  });
+
+  document.getElementById("cancel-login-btn").addEventListener("click", () => {
+    loginModal.classList.add("hidden");
+    loginForm.reset();
+    loginError.classList.add("hidden");
+  });
+
+  loginForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const username = document.getElementById("login-username").value;
+    const password = document.getElementById("login-password").value;
+
+    try {
+      const response = await fetch(
+        `/login?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`,
+        { method: "POST" }
+      );
+      const result = await response.json();
+
+      if (response.ok) {
+        sessionStorage.setItem("authToken", result.token);
+        loginModal.classList.add("hidden");
+        loginForm.reset();
+        loginError.classList.add("hidden");
+        updateAuthUI();
+      } else {
+        loginError.textContent = result.detail || "Login failed";
+        loginError.classList.remove("hidden");
+      }
+    } catch (error) {
+      loginError.textContent = "Login failed. Please try again.";
+      loginError.classList.remove("hidden");
+    }
+  });
+
+  logoutBtn.addEventListener("click", async () => {
+    const token = getToken();
+    if (token) {
+      await fetch("/logout", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      sessionStorage.removeItem("authToken");
+    }
+    updateAuthUI();
+  });
+
   // Function to fetch activities from API
   async function fetchActivities() {
     try {
@@ -30,7 +111,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 ${details.participants
                   .map(
                     (email) =>
-                      `<li><span class="participant-email">${email}</span><button class="delete-btn" data-activity="${name}" data-email="${email}">❌</button></li>`
+                      `<li><span class="participant-email">${email}</span>${isLoggedIn() ? `<button class="delete-btn" data-activity="${name}" data-email="${email}">❌</button>` : ""}</li>`
                   )
                   .join("")}
               </ul>
@@ -80,6 +161,7 @@ document.addEventListener("DOMContentLoaded", () => {
         )}/unregister?email=${encodeURIComponent(email)}`,
         {
           method: "DELETE",
+          headers: { Authorization: `Bearer ${getToken()}` },
         }
       );
 
@@ -124,6 +206,7 @@ document.addEventListener("DOMContentLoaded", () => {
         )}/signup?email=${encodeURIComponent(email)}`,
         {
           method: "POST",
+          headers: { Authorization: `Bearer ${getToken()}` },
         }
       );
 
@@ -156,5 +239,5 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   // Initialize app
-  fetchActivities();
+  updateAuthUI();
 });
